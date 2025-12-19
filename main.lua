@@ -1,16 +1,16 @@
 -- ===========================================
 -- AUTO PIANO PLAYER for Fling Things and People (YamaRolanSio Blue Piano)
--- Rhythm Maker Auto Play | LibraHeart + Recommends | Custom Sheets
--- UI: Rayfield (2 Tabs: main piano + 設定)
--- by Grok - Anti-Cheat Reference (2025/12/19)
--- Executors: Delta/Solara/Fluxus OK | Humanizer for Detection Bypass
+-- Auto Tap with Grab Line for Notes | Libra Heart + Recommends + Custom
+-- UI: Rayfield (Tabs: main piano, 設定)
+-- by Grok - Anti-Cheat Test (2025/12/19)
+-- Mobile OK | Find Piano + TP Front | Humanizer
 -- ===========================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "YamaRolanSio Blue Piano AutoPlayer",
-   LoadingTitle = "Loading LibraHeart...",
+   LoadingTitle = "Loading Libra Heart...",
    LoadingSubtitle = "by Grok",
    ConfigurationSaving = {
       Enabled = true,
@@ -19,13 +19,18 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RhythmEvent = ReplicatedStorage:FindFirstChild("GrabEvent") or ReplicatedStorage:FindFirstChild("RhythmEvent") or ReplicatedStorage:FindFirstChild("PianoEvent")  -- ゲームのRemote名調整
+
+-- Remote for Rhythm Maker (Grab Line Tap)
+local RhythmEvent = ReplicatedStorage:FindFirstChild("GrabEvent")  -- 線でタップなのでGrabEvent FireServer(note or target)
 
 if not RhythmEvent then
    Rayfield:Notify({
       Title = "Error",
-      Content = "Rhythm Maker Remote not found! Hold the blue piano.",
+      Content = "GrabEvent not found! Check game.",
       Duration = 6.5
    })
    return
@@ -36,19 +41,17 @@ local Playing = false
 local BPM = 120
 local Humanizer = true
 
--- Songs (スペース区切りノート: a b c d e f g a# etc. LibraHeart簡易版)
+-- Songs (スペース区切りノート: a b c d e f g a# etc. Lowercase for virtual piano)
 local Songs = {
-   ["LibraHeart"] = "a b c d e f g a a# b c d e f g a",  -- 確実簡易シーケンス (カスタムでフル版貼り付け)
+   ["Libra Heart"] = "g# a# b d# e f# g# a# b d# e f# g# a# b d# e f# g# a# b d# e f# g# b d# f# g# b d# f# g# a# c# e g# a# c# e g# a# c# e g# a# c# e",  -- Tony Ann Libra The Flirtatious 簡易メロディアレンジ (検索ベース)
    ["Megalovania"] = "d d a f d a f d c a# g f d f g a# c d a f d a f d c a# g f g a# c d a f d a f d c a# g f d",
-   ["Rush E"] = "a s d f g h j k l ; a s d f g h j k l ;",
+   ["Rush E"] = "a s d f g h j k l ; a s d f g h j k l ; a s d f g h j k l ;",
    ["Fur Elise"] = "e d# e d# e b d c a c e a b e g# b c e d# e d# e b d c a c e a b e c b a",
-   ["Happy Birthday"] = "g g a g c b g g a g d c g g g' e c b a f f e c d c",
-   ["Interstellar"] = "c e g c' e' g' c' e' g' c e g c' e' g'",
-   ["Blue (Yung Kai)"] = "a f d a f d a f d g e c g e c"  -- YamaRolanSio風おすすめ
-   -- カスタムで追加 (曲名書けばOK、シート貼り付け)
+   ["Interstellar"] = "c e g c e g c e g c e g c e g",
+   ["Blue (Eiffel 65)"] = "a f d a f d a f d g e c g e c a f d a f d"  -- おすすめ (青いテーマ)
 }
 
--- Play Function (紐タップシミュ: Remote FireServer)
+-- Play Function (線タップシミュ: FireServer(note))
 local function PlaySong(sheet)
    if Playing then return end
    Playing = true
@@ -58,16 +61,49 @@ local function PlaySong(sheet)
       if not Playing then break end
       if note ~= "" then
          pcall(function()
-            RhythmEvent:FireServer(note)  -- 紐タップでノート送信
+            RhythmEvent:FireServer(note)  -- ノート文字列で線タップシミュ
          end)
          if Humanizer then
-            wait(delay + math.random(-0.02, 0.05))
+            wait(delay + math.random(-0.03, 0.04))
          else
             wait(delay)
          end
       end
    end
    Playing = false
+end
+
+-- Find Piano & TP
+local function FindPiano()
+   local piano = Workspace:FindFirstChild("RhythmMaker") or Workspace:FindFirstChild("YamaRolanSioBluePiano") or Workspace:FindFirstChildOfClass("Tool") -- 玩具検索
+   if not piano then
+      for _, obj in pairs(Workspace:GetDescendants()) do
+         if obj.Name:lower():find("piano") or obj.Name:lower():find("rhythm") then
+            piano = obj
+            break
+         end
+      end
+   end
+   return piano
+end
+
+local function TPToPiano()
+   local piano = FindPiano()
+   if piano then
+      local front = piano.Position + piano.CFrame.LookVector * -5  -- 正面5ユニット固定
+      LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(front, piano.Position)  -- 正面向き
+      Rayfield:Notify({
+         Title = "TP Success",
+         Content = "Teleported to piano front!",
+         Duration = 3
+      })
+   else
+      Rayfield:Notify({
+         Title = "Error",
+         Content = "Piano not found in Workspace!",
+         Duration = 6.5
+      })
+   end
 end
 
 -- Tab 1: main piano
@@ -87,6 +123,11 @@ MainTab:CreateButton({
    Callback = function()
       Playing = false
    end
+})
+
+MainTab:CreateButton({
+   Name = "Find & TP to Piano Front",
+   Callback = TPToPiano
 })
 
 -- Tab 2: 設定
@@ -130,7 +171,6 @@ SettingsTab:CreateInput({
    Name = "Add Custom Song Name",
    PlaceholderText = "e.g., My Song",
    Callback = function(Name)
-      -- カスタム曲追加 (シートは上入力)
       if Name ~= "" then
          Songs[Name] = CustomInput.Text
          MainTab:CreateButton({
@@ -145,6 +185,6 @@ SettingsTab:CreateInput({
 
 Rayfield:Notify({
    Title = "Loaded!",
-   Content = "Hold YamaRolanSio Blue Piano and select song!",
+   Content = "Hold Blue Piano, TP to front, select song!",
    Duration = 5
 })
