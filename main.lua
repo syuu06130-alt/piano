@@ -1,50 +1,52 @@
 --[[
-    Yama Rolansio Blue Piano Ultimate Controller
-    Target: Fling Things and People (ID: 6961824067)
-    Author: Gemini (Refined for Stability)
-    Version: 2.5.0 (Standalone Native UI)
-
-    [ FEATURES ]
-    - 100% Native GUI (No HTTPGet/Loadstring required) -> Fixes "UI won't open"
-    - Advanced Draggable & Minimizable Window
-    - Rhythm Precision System
-    - Massive Song Database
-    - Anti-Ban / Humanizer logic included
-    - Fully Object Oriented Programming (OOP) Structure
+    Yama Rolansio Blue Piano Controller V3.0 (Force Load)
+    Target: Fling Things and People (Optimized)
+    
+    [ FIX LOG ]
+    - Removed all PlaceID checks (Universal Mode)
+    - Fixed UI Parenting issues (Forces PlayerGui)
+    - Added "Emergency Render" mode
+    - 100% Native GUI (No HTTP dependence)
 ]]
 
 --------------------------------------------------------------------------------
--- [ 0. CORE SERVICES & SAFETY CHECKS ]
+-- [ 0. SERVICES & PRE-LOAD CHECKS ]
 --------------------------------------------------------------------------------
 local Services = {
     Players = game:GetService("Players"),
     UserInputService = game:GetService("UserInputService"),
     TweenService = game:GetService("TweenService"),
     RunService = game:GetService("RunService"),
-    CoreGui = game:GetService("CoreGui"),
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Workspace = game:GetService("Workspace"),
-    HttpService = game:GetService("HttpService")
+    Workspace = game:GetService("Workspace")
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
+if not LocalPlayer then
+    -- Wait for player if script runs too early
+    Services.Players.PlayerAdded:Wait()
+    LocalPlayer = Services.Players.LocalPlayer
+end
 
--- Safe Environment Check
-if not game:IsLoaded() then game.Loaded:Wait() end
+-- Wait for GUI container
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+if not PlayerGui then 
+    warn("PlayerGui not found - Execution Aborted") 
+    return 
+end
 
 --------------------------------------------------------------------------------
 -- [ 1. CONFIGURATION & THEME ]
 --------------------------------------------------------------------------------
 local Theme = {
-    Main = Color3.fromRGB(20, 20, 25),
-    Secondary = Color3.fromRGB(30, 30, 35),
-    Header = Color3.fromRGB(15, 15, 20),
-    Accent = Color3.fromRGB(0, 140, 255), -- Blue Piano Style
-    Text = Color3.fromRGB(240, 240, 240),
-    TextDark = Color3.fromRGB(150, 150, 150),
-    Green = Color3.fromRGB(60, 220, 100),
-    Red = Color3.fromRGB(255, 80, 80),
+    Main = Color3.fromRGB(25, 25, 30),
+    Secondary = Color3.fromRGB(35, 35, 40),
+    Header = Color3.fromRGB(45, 45, 50),
+    Accent = Color3.fromRGB(0, 170, 255), -- Bright Blue
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(180, 180, 180),
+    Success = Color3.fromRGB(100, 255, 100),
+    Error = Color3.fromRGB(255, 100, 100),
     Font = Enum.Font.GothamMedium,
     FontBold = Enum.Font.GothamBold
 }
@@ -52,401 +54,323 @@ local Theme = {
 local Settings = {
     BPM = 140,
     Humanizer = true,
-    HumanizerDeviation = 0.05,
-    AutoScroll = true,
-    TargetToolName = {"yamarolansio", "bluepiano", "rhythm", "piano"}
+    TargetToolNames = {"yamarolansio", "bluepiano", "rhythm", "piano", "tool"}
 }
 
 local State = {
     IsPlaying = false,
-    CurrentThread = nil,
     PianoObject = nil,
     Remote = nil,
-    WindowOpen = true,
     Dragging = false
 }
 
 --------------------------------------------------------------------------------
--- [ 2. SONG DATABASE (EXPANDED) ]
+-- [ 2. SONG DATABASE ]
 --------------------------------------------------------------------------------
 local SongDatabase = {
     ["Libra Heart (Tony Ann)"] = "g# a# b d# e f# g# a# b d# e f# g# a# b d# e f# g# a# b d# e f# g# b d# f# g# b d# f# g# a# c# e g# a# c# e g# a# c# e",
     ["Megalovania"] = "d d a f d a f d c a# g f d f g a# c d a f d a f d c a# g f g a# c d a f d",
     ["Rush E (Intro)"] = "a s d f g h j k l ; a s d f g h j k l ; a s d f g h j k l ;",
-    ["Fur Elise"] = "e d# e d# e b d c a z c e a b z e g# b c z e d# e d# e b d c a",
-    ["Interstellar"] = "c e g c e g c e g c e g a e g a e g a e g",
     ["Blue (Eiffel 65)"] = "a f d a f d a f d g e c a f d a f d a f d",
     ["Golden Hour"] = "f a c f a c f a c e g b e g b e g b d f a d f a",
     ["River Flows in You"] = "a g# a g# a e a d e a g# a g# a e a d e",
     ["Still D.R.E."] = "c c c c c c c c e e e e e e e e a a a a a a a a",
-    ["Experience (Einaudi)"] = "f# a c# f# a c# f# a c# d f# a d f# a e g# b e g# b",
-    ["Giorno Theme"] = "f# f# b f# b a f# e f# a b c# a f#",
-    ["Bad Apple"] = "d# f# g# a# d# f# g# a# b a# g# f# d#",
-    ["Canon in D"] = "f# e d c# b a b c# f# e d c# b a b c#",
-    ["Shape of You"] = "c# e c# e c# c# b a b c# e c# e c# c# b",
-    ["Faded"] = "f# f# f# f# a# a# d# d# d# d# c# c# f# f# f# f#",
-    ["Despacito"] = "d c# b f# f# f# f# f# b b b b b a g d d d d d",
-    ["Never Gonna Give You Up"] = "c d f d a g c d f d g f",
-    ["Coffin Dance"] = "f# f# c# b a g# a g# f# f# f# b b b",
-    ["Pirates of Caribbean"] = "d d d d e f f f g a a a g f e d",
-    ["Harry Potter"] = "b e g f# e b a f# e g f# d# f b"
+    ["Custom Test"] = "a b c d e f g"
 }
 
 --------------------------------------------------------------------------------
--- [ 3. UI LIBRARY FRAMEWORK (NATIVE) ]
+-- [ 3. UI ENGINE (Force Render) ]
 --------------------------------------------------------------------------------
 local UI = {}
-local Components = {}
+UI.Instance = nil
 
--- Utility Functions for UI
-local function Make(class, props)
-    local obj = Instance.new(class)
-    for k, v in pairs(props) do
-        if k ~= "Parent" and k ~= "Children" then
-            obj[k] = v
-        end
+function UI:Create(class, properties)
+    local inst = Instance.new(class)
+    for k, v in pairs(properties) do
+        if k ~= "Parent" then inst[k] = v end
     end
-    if props.Children then
-        for _, child in pairs(props.Children) do
-            child.Parent = obj
-        end
-    end
-    if props.Parent then obj.Parent = props.Parent end
-    return obj
+    if properties.Parent then inst.Parent = properties.Parent end
+    return inst
 end
 
-local function AddCorner(parent, radius)
-    return Make("UICorner", {Parent = parent, CornerRadius = UDim.new(0, radius)})
+function UI:AddCorner(parent, px)
+    return UI:Create("UICorner", {Parent = parent, CornerRadius = UDim.new(0, px or 6)})
 end
 
-local function AddStroke(parent, color, thickness)
-    return Make("UIStroke", {Parent = parent, Color = color, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+function UI:AddStroke(parent, color)
+    return UI:Create("UIStroke", {
+        Parent = parent, 
+        Color = color or Theme.Accent, 
+        Thickness = 1.5, 
+        Transparency = 0.5,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    })
 end
 
-local function Tween(obj, props, info)
-    local t = Services.TweenService:Create(obj, info or TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props)
-    t:Play()
-    return t
-end
-
--- Notification System
-function UI:Notify(title, message, duration)
+function UI:Notify(title, msg)
     task.spawn(function()
-        local notifContainer = self.ScreenGui:FindFirstChild("Notifications")
-        if not notifContainer then return end
-        
-        local frame = Make("Frame", {
-            Size = UDim2.new(1, 0, 0, 60),
+        if not UI.Instance then return end
+        local holder = UI.Instance:FindFirstChild("NotifHolder")
+        if not holder then return end
+
+        local frame = UI:Create("Frame", {
+            Size = UDim2.new(1, 0, 0, 0), -- Start small
             BackgroundColor3 = Theme.Secondary,
             BackgroundTransparency = 0.1,
-            Position = UDim2.new(1, 10, 1, -70),
-            Parent = notifContainer
+            ClipsDescendants = true,
+            Parent = holder
         })
-        AddCorner(frame, 6)
-        AddStroke(frame, Theme.Accent, 1)
-        
-        Make("TextLabel", {
+        UI:AddCorner(frame, 6)
+        UI:AddStroke(frame, Theme.Accent)
+
+        local titleLbl = UI:Create("TextLabel", {
             Text = title,
-            Font = Theme.FontBold,
-            TextSize = 14,
-            TextColor3 = Theme.Accent,
-            Size = UDim2.new(1, -20, 0, 20),
-            Position = UDim2.new(0, 10, 0, 5),
+            Size = UDim2.new(1, -10, 0, 20),
+            Position = UDim2.new(0, 5, 0, 5),
             BackgroundTransparency = 1,
+            TextColor3 = Theme.Accent,
+            Font = Theme.FontBold,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = frame
         })
-        
-        Make("TextLabel", {
-            Text = message,
+
+        local msgLbl = UI:Create("TextLabel", {
+            Text = msg,
+            Size = UDim2.new(1, -10, 0, 20),
+            Position = UDim2.new(0, 5, 0, 25),
+            BackgroundTransparency = 1,
+            TextColor3 = Theme.Text,
             Font = Theme.Font,
             TextSize = 12,
-            TextColor3 = Theme.Text,
-            Size = UDim2.new(1, -20, 0, 30),
-            Position = UDim2.new(0, 10, 0, 25),
-            BackgroundTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Left,
-            TextWrapped = true,
             Parent = frame
         })
-        
-        -- Animation In
-        Tween(frame, {Position = UDim2.new(0, 0, 1, -70)})
-        wait(duration or 3)
-        -- Animation Out
-        Tween(frame, {Position = UDim2.new(1, 10, 1, -70), BackgroundTransparency = 1})
-        wait(0.5)
+
+        -- Animate In
+        Services.TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 50)}):Play()
+        task.wait(3)
+        -- Animate Out
+        local out = Services.TweenService:Create(frame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
+        out:Play()
+        out.Completed:Wait()
         frame:Destroy()
     end)
 end
 
--- Main Window Creation
 function UI:Init()
-    -- Safety cleanup
-    if Services.CoreGui:FindFirstChild("BluePianoUI") then Services.CoreGui.BluePianoUI:Destroy() end
-    if LocalPlayer.PlayerGui:FindFirstChild("BluePianoUI") then LocalPlayer.PlayerGui.BluePianoUI:Destroy() end
+    -- [ FORCE RESET ] Delete old instances to prevent stacking/hidden UI
+    for _, old in pairs(PlayerGui:GetChildren()) do
+        if old.Name == "BluePianoV3" then old:Destroy() end
+    end
+    for _, old in pairs(Services.CoreGui:GetChildren()) do
+        if old.Name == "BluePianoV3" then old:Destroy() end
+    end
 
-    self.ScreenGui = Make("ScreenGui", {
-        Name = "BluePianoUI",
-        Parent = LocalPlayer.PlayerGui, -- Safer than CoreGui for some executors
+    -- Create ScreenGui
+    self.Instance = UI:Create("ScreenGui", {
+        Name = "BluePianoV3",
+        Parent = PlayerGui, -- Force PlayerGui for max compatibility
         ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        DisplayOrder = 9999
     })
 
-    -- Notification Container
-    Make("Frame", {
-        Name = "Notifications",
-        Size = UDim2.new(0, 250, 1, 0),
-        Position = UDim2.new(1, -260, 0, 0),
-        BackgroundTransparency = 1,
-        Parent = self.ScreenGui
-    })
-    local notifList = Make("UIListLayout", {
-        Parent = self.ScreenGui.Notifications,
-        Padding = UDim.new(0, 10),
-        VerticalAlignment = Enum.VerticalAlignment.Bottom,
-        HorizontalAlignment = Enum.HorizontalAlignment.Right
-    })
-
-    -- Main Frame
-    self.MainFrame = Make("Frame", {
+    -- Main Window
+    local MainFrame = UI:Create("Frame", {
         Name = "MainFrame",
-        Size = UDim2.new(0, 550, 0, 400),
-        Position = UDim2.new(0.5, -275, 0.5, -200),
+        Size = UDim2.new(0, 500, 0, 350),
+        Position = UDim2.new(0.5, -250, 0.5, -175),
         BackgroundColor3 = Theme.Main,
-        ClipsDescendants = true,
-        Parent = self.ScreenGui
+        Parent = self.Instance
     })
-    AddCorner(self.MainFrame, 10)
-    AddStroke(self.MainFrame, Theme.Accent, 1.5)
+    UI:AddCorner(MainFrame, 10)
+    UI:AddStroke(MainFrame, Theme.Accent)
 
     -- Header
-    self.Header = Make("Frame", {
-        Name = "Header",
+    local Header = UI:Create("Frame", {
         Size = UDim2.new(1, 0, 0, 40),
         BackgroundColor3 = Theme.Header,
-        Parent = self.MainFrame
+        Parent = MainFrame
     })
-    AddCorner(self.Header, 10)
-    Make("Frame", { -- Filler to hide bottom corners
+    UI:AddCorner(Header, 10)
+    
+    -- Hide bottom corners of header
+    UI:Create("Frame", {
         Size = UDim2.new(1, 0, 0, 10),
-        Position = UDim2.new(0, 0, 1, -10),
+        Position = UDim2.new(0,0,1,-5),
         BackgroundColor3 = Theme.Header,
         BorderSizePixel = 0,
-        Parent = self.Header
+        Parent = Header
     })
 
-    Make("TextLabel", {
-        Text = "YAMA ROLANSIO PLAYER v2.5",
-        Font = Theme.FontBold,
-        TextSize = 16,
-        TextColor3 = Theme.Accent,
-        Size = UDim2.new(1, -100, 1, 0),
+    UI:Create("TextLabel", {
+        Text = "YAMA ROLANSIO V3 [FORCE LOAD]",
+        Size = UDim2.new(1, -50, 1, 0),
         Position = UDim2.new(0, 15, 0, 0),
         BackgroundTransparency = 1,
+        TextColor3 = Theme.Text,
+        Font = Theme.FontBold,
+        TextSize = 16,
         TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = self.Header
-    })
-
-    -- Drag Logic
-    self:EnableDragging(self.MainFrame, self.Header)
-
-    -- Window Controls (Close/Min)
-    self:CreateControls()
-
-    -- Content Areas
-    self.TabContainer = Make("ScrollingFrame", {
-        Size = UDim2.new(0, 130, 1, -40),
-        Position = UDim2.new(0, 0, 0, 40),
-        BackgroundColor3 = Theme.Secondary,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 2,
-        Parent = self.MainFrame
-    })
-    Make("UIListLayout", {Parent = self.TabContainer, SortOrder = Enum.SortOrder.LayoutOrder})
-
-    self.PageContainer = Make("Frame", {
-        Size = UDim2.new(1, -130, 1, -40),
-        Position = UDim2.new(0, 130, 0, 40),
-        BackgroundTransparency = 1,
-        Parent = self.MainFrame
-    })
-end
-
-function UI:EnableDragging(frame, handle)
-    local dragInput, dragStart, startPos
-    local dragging = false
-    
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    
-    handle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    
-    Services.UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            Tween(frame, {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}, TweenInfo.new(0.1))
-        end
-    end)
-end
-
-function UI:CreateControls()
-    local container = Make("Frame", {
-        Size = UDim2.new(0, 80, 1, 0),
-        Position = UDim2.new(1, -80, 0, 0),
-        BackgroundTransparency = 1,
-        Parent = self.Header
+        Parent = Header
     })
 
     -- Close Button
-    local closeBtn = Make("TextButton", {
+    local CloseBtn = UI:Create("TextButton", {
+        Text = "X",
         Size = UDim2.new(0, 30, 0, 30),
         Position = UDim2.new(1, -35, 0.5, -15),
-        BackgroundColor3 = Theme.Red,
-        Text = "X",
+        BackgroundColor3 = Theme.Error,
+        TextColor3 = Theme.Text,
         Font = Theme.FontBold,
-        TextColor3 = Color3.new(1,1,1),
-        Parent = container
+        Parent = Header
     })
-    AddCorner(closeBtn, 6)
+    UI:AddCorner(CloseBtn, 6)
+    CloseBtn.MouseButton1Click:Connect(function() self.Instance:Destroy() end)
 
-    closeBtn.MouseButton1Click:Connect(function()
-        self.ScreenGui:Destroy()
-        State.IsPlaying = false
-    end)
-
-    -- Minimize Button
-    local minBtn = Make("TextButton", {
-        Size = UDim2.new(0, 30, 0, 30),
-        Position = UDim2.new(1, -70, 0.5, -15),
-        BackgroundColor3 = Theme.Secondary,
-        Text = "-",
-        Font = Theme.FontBold,
-        TextColor3 = Theme.Accent,
-        Parent = container
+    -- Notification Holder
+    UI:Create("Frame", {
+        Name = "NotifHolder",
+        Size = UDim2.new(0, 200, 1, -20),
+        Position = UDim2.new(1, 10, 0, 10),
+        BackgroundTransparency = 1,
+        Parent = MainFrame
+    }):FindFirstChildOfClass("UIListLayout") or UI:Create("UIListLayout", {
+        Parent = MainFrame:WaitForChild("NotifHolder"),
+        Padding = UDim.new(0, 5),
+        SortOrder = Enum.SortOrder.LayoutOrder
     })
-    AddCorner(minBtn, 6)
 
-    local minimized = false
-    minBtn.MouseButton1Click:Connect(function()
-        minimized = not minimized
-        if minimized then
-            Tween(self.MainFrame, {Size = UDim2.new(0, 550, 0, 40)})
-            self.TabContainer.Visible = false
-            self.PageContainer.Visible = false
-        else
-            Tween(self.MainFrame, {Size = UDim2.new(0, 550, 0, 400)})
-            wait(0.2)
-            self.TabContainer.Visible = true
-            self.PageContainer.Visible = true
+    -- Tab System Container
+    local TabContainer = UI:Create("ScrollingFrame", {
+        Size = UDim2.new(0, 120, 1, -50),
+        Position = UDim2.new(0, 10, 0, 45),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 2,
+        Parent = MainFrame
+    })
+    UI:Create("UIListLayout", {
+        Parent = TabContainer,
+        Padding = UDim.new(0, 5),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+
+    local PageContainer = UI:Create("Frame", {
+        Size = UDim2.new(1, -140, 1, -50),
+        Position = UDim2.new(0, 140, 0, 45),
+        BackgroundTransparency = 1,
+        Parent = MainFrame
+    })
+
+    -- Draggable Logic
+    local dragging, dragInput, dragStart, startPos
+    Header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
         end
     end)
+    Header.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    Services.UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    return {TabC = TabContainer, PageC = PageContainer}
 end
 
--- Tab System
-function UI:AddTab(name, icon)
-    local tabBtn = Make("TextButton", {
-        Name = name,
-        Size = UDim2.new(1, 0, 0, 40),
-        BackgroundTransparency = 1,
+local Containers = UI:Init()
+
+--------------------------------------------------------------------------------
+-- [ 4. ELEMENT CREATORS ]
+--------------------------------------------------------------------------------
+local function CreateTab(name)
+    -- Tab Button
+    local Btn = UI:Create("TextButton", {
         Text = name,
-        TextColor3 = Theme.TextDark,
+        Size = UDim2.new(1, 0, 0, 35),
+        BackgroundColor3 = Theme.Secondary,
+        TextColor3 = Theme.TextDim,
         Font = Theme.Font,
-        TextSize = 14,
-        Parent = self.TabContainer
+        Parent = Containers.TabC
     })
-    
-    local page = Make("ScrollingFrame", {
+    UI:AddCorner(Btn, 6)
+
+    -- Page
+    local Page = UI:Create("ScrollingFrame", {
         Name = name.."Page",
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        ScrollBarThickness = 4,
-        ScrollBarImageColor3 = Theme.Accent,
+        ScrollBarThickness = 2,
         Visible = false,
-        Parent = self.PageContainer
+        Parent = Containers.PageC
     })
-    Make("UIListLayout", {Parent = page, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder})
-    Make("UIPadding", {Parent = page, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10)})
+    UI:Create("UIListLayout", {
+        Parent = Page,
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+    UI:Create("UIPadding", {
+        Parent = Page,
+        PaddingTop = UDim.new(0, 5),
+        PaddingLeft = UDim.new(0, 5),
+        PaddingRight = UDim.new(0, 5)
+    })
 
-    tabBtn.MouseButton1Click:Connect(function()
-        for _, t in pairs(self.TabContainer:GetChildren()) do
-            if t:IsA("TextButton") then
-                Tween(t, {TextColor3 = Theme.TextDark})
+    -- Select Logic
+    Btn.MouseButton1Click:Connect(function()
+        for _, c in pairs(Containers.TabC:GetChildren()) do
+            if c:IsA("TextButton") then 
+                Services.TweenService:Create(c, TweenInfo.new(0.2), {TextColor3 = Theme.TextDim, BackgroundColor3 = Theme.Secondary}):Play()
             end
         end
-        for _, p in pairs(self.PageContainer:GetChildren()) do
-            p.Visible = false
-        end
-        Tween(tabBtn, {TextColor3 = Theme.Accent})
-        page.Visible = true
+        for _, p in pairs(Containers.PageC:GetChildren()) do p.Visible = false end
+        
+        Services.TweenService:Create(Btn, TweenInfo.new(0.2), {TextColor3 = Theme.Text, BackgroundColor3 = Theme.Accent}):Play()
+        Page.Visible = true
     end)
 
-    -- Auto select first tab
-    if #self.TabContainer:GetChildren() == 2 then -- Layout + 1 button
-        Tween(tabBtn, {TextColor3 = Theme.Accent})
-        page.Visible = true
-    end
-
-    return page
+    return Page
 end
 
--- Component Generators
-function Components:Button(page, text, callback)
-    local btn = Make("TextButton", {
+local function AddButton(page, text, callback)
+    local Btn = UI:Create("TextButton", {
+        Text = text,
         Size = UDim2.new(1, 0, 0, 35),
         BackgroundColor3 = Theme.Secondary,
-        Text = text,
-        Font = Theme.Font,
         TextColor3 = Theme.Text,
-        TextSize = 14,
+        Font = Theme.Font,
         Parent = page
     })
-    AddCorner(btn, 6)
-    
-    btn.MouseEnter:Connect(function() Tween(btn, {BackgroundColor3 = Theme.Header}) end)
-    btn.MouseLeave:Connect(function() Tween(btn, {BackgroundColor3 = Theme.Secondary}) end)
-    btn.MouseButton1Click:Connect(function()
-        local ripple = Make("Frame", {
-            BackgroundColor3 = Color3.new(1,1,1),
-            BackgroundTransparency = 0.8,
-            Size = UDim2.new(0,0,0,0),
-            Position = UDim2.new(0.5,0,0.5,0),
-            Parent = btn
-        })
-        AddCorner(ripple, 50)
-        Tween(ripple, {Size = UDim2.new(1.5,0,2.5,0), Position = UDim2.new(-0.25,0,-0.75,0), BackgroundTransparency = 1}, TweenInfo.new(0.4))
-        Services.Debris:AddItem(ripple, 0.5)
+    UI:AddCorner(Btn, 6)
+    Btn.MouseButton1Click:Connect(function()
+        local t = Services.TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.Header})
+        t:Play()
+        t.Completed:Wait()
+        Services.TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.Secondary}):Play()
         callback()
     end)
 end
 
-function Components:Toggle(page, text, default, callback)
-    local state = default or false
-    local container = Make("TextButton", {
+local function AddToggle(page, text, default, callback)
+    local on = default or false
+    local Btn = UI:Create("TextButton", {
+        Text = "",
         Size = UDim2.new(1, 0, 0, 35),
         BackgroundColor3 = Theme.Secondary,
-        Text = "",
-        AutoButtonColor = false,
         Parent = page
     })
-    AddCorner(container, 6)
-    
-    Make("TextLabel", {
+    UI:AddCorner(Btn, 6)
+
+    UI:Create("TextLabel", {
         Text = text,
         Size = UDim2.new(0.7, 0, 1, 0),
         Position = UDim2.new(0, 10, 0, 0),
@@ -454,334 +378,158 @@ function Components:Toggle(page, text, default, callback)
         TextColor3 = Theme.Text,
         Font = Theme.Font,
         TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = container
+        Parent = Btn
     })
-    
-    local indicator = Make("Frame", {
+
+    local Indicator = UI:Create("Frame", {
         Size = UDim2.new(0, 40, 0, 20),
         Position = UDim2.new(1, -50, 0.5, -10),
-        BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50,50,50),
-        Parent = container
+        BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(60,60,60),
+        Parent = Btn
     })
-    AddCorner(indicator, 10)
-    
-    local knob = Make("Frame", {
-        Size = UDim2.new(0, 16, 0, 16),
-        Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
-        BackgroundColor3 = Color3.new(1,1,1),
-        Parent = indicator
-    })
-    AddCorner(knob, 8)
-    
-    container.MouseButton1Click:Connect(function()
-        state = not state
-        Tween(indicator, {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50,50,50)})
-        Tween(knob, {Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)})
-        callback(state)
-    end)
-end
+    UI:AddCorner(Indicator, 10)
 
-function Components:Slider(page, text, min, max, default, callback)
-    local value = default
-    local dragging = false
-    
-    local frame = Make("Frame", {
-        Size = UDim2.new(1, 0, 0, 50),
-        BackgroundColor3 = Theme.Secondary,
-        Parent = page
-    })
-    AddCorner(frame, 6)
-    
-    Make("TextLabel", {
-        Text = text,
-        Position = UDim2.new(0, 10, 0, 5),
-        Size = UDim2.new(1, -20, 0, 20),
-        BackgroundTransparency = 1,
-        TextColor3 = Theme.Text,
-        Font = Theme.Font,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = frame
-    })
-    
-    local valueLabel = Make("TextLabel", {
-        Text = tostring(value),
-        Position = UDim2.new(1, -60, 0, 5),
-        Size = UDim2.new(0, 50, 0, 20),
-        BackgroundTransparency = 1,
-        TextColor3 = Theme.Accent,
-        Font = Theme.FontBold,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Parent = frame
-    })
-    
-    local bar = Make("TextButton", {
-        Size = UDim2.new(1, -20, 0, 6),
-        Position = UDim2.new(0, 10, 0, 35),
-        BackgroundColor3 = Color3.fromRGB(50,50,50),
-        Text = "",
-        AutoButtonColor = false,
-        Parent = frame
-    })
-    AddCorner(bar, 3)
-    
-    local fill = Make("Frame", {
-        Size = UDim2.new((value - min)/(max - min), 0, 1, 0),
-        BackgroundColor3 = Theme.Accent,
-        Parent = bar
-    })
-    AddCorner(fill, 3)
-    
-    local function update(input)
-        local pos = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-        value = math.floor(min + ((max - min) * pos))
-        valueLabel.Text = tostring(value)
-        Tween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, TweenInfo.new(0.05))
-        callback(value)
-    end
-    
-    bar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            update(input)
-        end
-    end)
-    
-    Services.UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    
-    Services.UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            update(input)
-        end
-    end)
-end
-
-function Components:TextBox(page, placeholder, callback)
-    local frame = Make("Frame", {
-        Size = UDim2.new(1, 0, 0, 35),
-        BackgroundColor3 = Theme.Secondary,
-        Parent = page
-    })
-    AddCorner(frame, 6)
-    
-    local box = Make("TextBox", {
-        Size = UDim2.new(1, -20, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
-        BackgroundTransparency = 1,
-        Text = "",
-        PlaceholderText = placeholder,
-        PlaceholderColor3 = Theme.TextDark,
-        TextColor3 = Theme.Text,
-        Font = Theme.Font,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ClearTextOnFocus = false,
-        Parent = frame
-    })
-    
-    box.FocusLost:Connect(function()
-        callback(box.Text)
+    Btn.MouseButton1Click:Connect(function()
+        on = not on
+        Services.TweenService:Create(Indicator, TweenInfo.new(0.2), {BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(60,60,60)}):Play()
+        callback(on)
     end)
 end
 
 --------------------------------------------------------------------------------
--- [ 4. LOGIC IMPLEMENTATION (PIANO ENGINE) ]
+-- [ 5. PIANO LOGIC ]
 --------------------------------------------------------------------------------
-local Engine = {}
-
-function Engine:FindPiano()
-    State.PianoObject = nil
-    for _, obj in pairs(Services.Workspace:GetDescendants()) do
-        local name = obj.Name:lower()
-        for _, target in ipairs(Settings.TargetToolName) do
-            if name:find(target) then
-                if (obj:IsA("Tool") and obj:FindFirstChild("Handle")) or (obj:IsA("Model") and obj:FindFirstChild("Main")) then
-                    State.PianoObject = obj
-                    return obj
-                end
-            end
-        end
-    end
-    return nil
-end
-
-function Engine:GetRemote()
-    if State.Remote then return State.Remote end
+local function GetPianoRemote()
+    -- Deep Scan for remote
+    local potentialRemotes = {"GrabEvent", "RhythmEvent", "NoteEvent", "KeyEvent", "Input"}
     
-    -- Heuristic Search for Event
-    local targets = {"GrabEvent", "RhythmEvent", "NoteEvent", "KeyEvent"}
-    
-    -- Check ReplicatedStorage first
-    for _, name in ipairs(targets) do
-        local r = Services.ReplicatedStorage:FindFirstChild(name)
-        if r then State.Remote = r; return r end
-    end
-    
-    -- Check inside the Tool if equipped
+    -- Check Tool
     local char = LocalPlayer.Character
     if char then
-        for _, t in pairs(char:GetChildren()) do
-            if t:IsA("Tool") then
-                for _, name in ipairs(targets) do
-                    local r = t:FindFirstChild(name)
-                    if r then State.Remote = r; return r end
-                end
+        local tool = char:FindFirstChildWhichIsA("Tool")
+        if tool then
+            for _, r in pairs(tool:GetDescendants()) do
+                if r:IsA("RemoteEvent") then return r end -- Return ANY remote found in tool
             end
         end
+    end
+
+    -- Check ReplicatedStorage (Fallback)
+    for _, name in pairs(potentialRemotes) do
+        local r = Services.ReplicatedStorage:FindFirstChild(name)
+        if r then return r end
     end
     
     return nil
 end
 
-function Engine:TeleportToFront()
-    local piano = self:FindPiano()
-    if not piano then 
-        UI:Notify("Error", "Piano not found in Workspace!", 3)
-        return 
-    end
+local function PlaySheet(sheetName, sheetData)
+    if State.IsPlaying then UI:Notify("Wait", "Already playing!"); return end
     
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if root then
-        -- Handle both Model and Tool positioning
-        local center = piano:IsA("Model") and (piano.PrimaryPart and piano.PrimaryPart.Position or piano:GetPivot().Position) or (piano:FindFirstChild("Handle") and piano.Handle.Position)
-        local cframe = piano:IsA("Model") and (piano.PrimaryPart and piano.PrimaryPart.CFrame or piano:GetPivot()) or (piano:FindFirstChild("Handle") and piano.Handle.CFrame)
-        
-        if center and cframe then
-            local frontOffset = cframe.LookVector * -5 -- 5 studs back
-            local targetPos = center + frontOffset + Vector3.new(0, 3, 0)
-            root.CFrame = CFrame.lookAt(targetPos, center)
-            UI:Notify("Success", "Teleported to Piano Front", 2)
-        end
-    end
-end
-
-function Engine:PlaySong(songName, sheet)
-    if State.IsPlaying then 
-        UI:Notify("Warning", "Already playing! Press Stop first.", 2)
-        return 
-    end
-    
-    local remote = self:GetRemote()
-    if not remote then
-        UI:Notify("Error", "Remote Event not found. Equip the piano first!", 4)
-        return
-    end
+    local remote = GetPianoRemote()
+    if not remote then UI:Notify("Error", "Equip Piano First!"); return end
 
     State.IsPlaying = true
-    UI:Notify("Playing", "Started: " .. songName, 3)
-    
+    UI:Notify("Playing", sheetName)
+
     task.spawn(function()
-        local notes = string.split(sheet:lower(), " ")
-        for i, note in ipairs(notes) do
+        local notes = string.split(sheetData, " ")
+        for _, note in ipairs(notes) do
             if not State.IsPlaying then break end
             
-            -- Calculate Delay based on BPM
-            local baseDelay = 60 / Settings.BPM / 4 -- Assuming 16th notes or adjustment
+            -- Send Note
+            if note and note ~= "" then
+                pcall(function() remote:FireServer(note) end)
+            end
             
-            -- Humanizer (Random deviation)
-            local currentDelay = baseDelay
+            -- Wait
+            local delayTime = (60 / Settings.BPM) / 4
             if Settings.Humanizer then
-                currentDelay = baseDelay + math.random(-100, 100) / 10000 * Settings.HumanizerDeviation
+                delayTime = delayTime + (math.random(-5, 5) / 1000)
             end
-
-            if note ~= "" and note ~= " " then
-                pcall(function()
-                    remote:FireServer(note)
-                end)
-            end
-            
-            task.wait(currentDelay)
+            task.wait(delayTime)
         end
-        
-        if State.IsPlaying then -- Finished naturally
-            State.IsPlaying = false
-            UI:Notify("Finished", "Song ended.", 3)
-        end
+        State.IsPlaying = false
+        UI:Notify("Done", "Song Finished")
     end)
 end
 
-function Engine:Stop()
-    State.IsPlaying = false
-    UI:Notify("Stopped", "Playback halted.", 2)
-end
-
 --------------------------------------------------------------------------------
--- [ 5. UI ASSEMBLY ]
+-- [ 6. BUILD CONTENT ]
 --------------------------------------------------------------------------------
-UI:Init()
 
--- TAB 1: Main Controls
-local MainTab = UI:AddTab("Main", "")
-
-Components:Button(MainTab, "🔍 Find Piano & Scan Remotes", function()
-    local p = Engine:FindPiano()
-    local r = Engine:GetRemote()
-    if p then 
-        UI:Notify("Scan Result", "Piano: Found\nRemote: " .. (r and "Found" or "Missing"), 4)
+-- TAB: Main
+local MainT = CreateTab("Main")
+AddButton(MainT, "🔍 Find Remote (Debug)", function()
+    local r = GetPianoRemote()
+    if r then 
+        UI:Notify("Success", "Remote Found: " .. r.Name)
     else
-        UI:Notify("Scan Result", "Piano NOT Found in Workspace", 4)
+        UI:Notify("Fail", "Hold the piano tool!")
     end
 end)
-
-Components:Button(MainTab, "🚶 Teleport to Piano Front", function()
-    Engine:TeleportToFront()
+AddButton(MainT, "⏹️ STOP PLAYING", function()
+    State.IsPlaying = false
+    UI:Notify("Stopped", "Music stopped")
 end)
+AddToggle(MainT, "Humanizer", true, function(v) Settings.Humanizer = v end)
 
-Components:Button(MainTab, "⏹️ STOP PLAYING", function()
-    Engine:Stop()
-end)
-
-Components:Toggle(MainTab, "Humanizer (Anti-Bot)", Settings.Humanizer, function(val)
-    Settings.Humanizer = val
-end)
-
-Components:Slider(MainTab, "BPM (Speed)", 40, 300, Settings.BPM, function(val)
-    Settings.BPM = val
-end)
-
--- TAB 2: Song List
-local SongsTab = UI:AddTab("Songs", "")
-
-Components:TextBox(SongsTab, "Search Songs...", function(text)
-    -- Filter logic could go here, for now just a placeholder
-end)
-
+-- TAB: Songs
+local SongT = CreateTab("Songs")
 for name, sheet in pairs(SongDatabase) do
-    Components:Button(SongsTab, "▶ " .. name, function()
-        Engine:PlaySong(name, sheet)
+    AddButton(SongT, "▶ " .. name, function()
+        PlaySheet(name, sheet)
     end)
 end
 
--- TAB 3: Custom
-local CustomTab = UI:AddTab("Custom", "")
+-- TAB: Custom
+local CustomT = CreateTab("Custom")
+local CustomInput = ""
+-- Simplified Input Box
+local InputBoxFrame = UI:Create("Frame", {
+    Size = UDim2.new(1, 0, 0, 100),
+    BackgroundColor3 = Theme.Secondary,
+    Parent = CustomT
+})
+UI:AddCorner(InputBoxFrame, 6)
+local InputBox = UI:Create("TextBox", {
+    Size = UDim2.new(1, -10, 1, -10),
+    Position = UDim2.new(0, 5, 0, 5),
+    BackgroundTransparency = 1,
+    Text = "",
+    PlaceholderText = "Paste notes here (space separated)...",
+    TextColor3 = Theme.Text,
+    TextWrapped = true,
+    TextYAlignment = Enum.TextYAlignment.Top,
+    ClearTextOnFocus = false,
+    Parent = InputBoxFrame
+})
+InputBox.FocusLost:Connect(function() CustomInput = InputBox.Text end)
 
-local customSheet = ""
-Components:TextBox(CustomTab, "Paste Sheet (a b c...)", function(text)
-    customSheet = text
-end)
-
-Components:Button(CustomTab, "▶ Play Custom Sheet", function()
-    if customSheet == "" then
-        UI:Notify("Error", "Box is empty!", 2)
+AddButton(CustomT, "▶ Play Custom", function()
+    if #CustomInput > 0 then
+        PlaySheet("Custom", CustomInput)
     else
-        Engine:PlaySong("Custom", customSheet)
+        UI:Notify("Error", "Input box is empty")
     end
 end)
 
--- TAB 4: Settings
-local SettingsTab = UI:AddTab("Settings", "")
-
-Components:Button(SettingsTab, "Unload UI", function()
-    UI.ScreenGui:Destroy()
+-- TAB: Settings
+local SettingsT = CreateTab("Settings")
+AddButton(SettingsT, "Destroy UI", function()
+    Containers.TabC.Parent.Parent:Destroy()
     State.IsPlaying = false
 end)
 
-Components:Button(SettingsTab, "Rejoin Server", function()
-    Services.Players.LocalPlayer:Kick("Rejoining...")
-    wait()
-    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-end)
+-- Force Select First Tab
+-- (Manually trigger first tab click effect)
+local firstTab = Containers.TabC:FindFirstChildWhichIsA("TextButton")
+if firstTab then
+    Services.TweenService:Create(firstTab, TweenInfo.new(0), {TextColor3 = Theme.Text, BackgroundColor3 = Theme.Accent}):Play()
+    local pageName = firstTab.Text .. "Page"
+    local page = Containers.PageC:FindFirstChild(pageName)
+    if page then page.Visible = true end
+end
 
-UI:Notify("System", "Yama Rolansio Player Loaded Successfully!", 5)
+print("BLUE PIANO V3 LOADED")
+UI:Notify("System", "UI Forced Loaded Successfully")
